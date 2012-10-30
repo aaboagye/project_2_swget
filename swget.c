@@ -14,8 +14,13 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netdb.h>
 #include <unistd.h>
+#include <string.h>
+#include <errno.h>
 #include "swget.h"
+
+#define DEBUG 1
 
 const char *argp_program_version = "swget 1.0";
 const char *argp_prog_bug_email =
@@ -23,10 +28,10 @@ const char *argp_prog_bug_email =
 static char doc[] = "swget -- A simple web download utility";
 static char args_doc[] = "";        // No default args
 static struct argp_option options[] = {
-    {"URL",        'u',     "URL",          0,      "URL of object to download",                            0 },
-    {"destDir",    'd',     "DESTDIR",      0,      "Destination directory to save files to",               0 },
-    {"verbose",    'v',     0,              0,      "Provide verbose output, including server headers",     0 },
-    { 0,            0,      0,              0,      0,                                                      0 }
+    {"URL",        'u',     "URL",          0,      "URL of object to download. [REQUIRED]",              0 },
+    {"destDir",    'd',     "DESTDIR",      0,      "Destination directory to save files to. [REQUIRED]", 0 },
+    {"verbose",    'v',     0,              0,      "Provide verbose output, including server headers",   0 },
+    { 0,            0,      0,              0,      0,                                                    0 }
     // Last entry should be all zeros in all fields
 };
 static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, 0 };
@@ -34,12 +39,42 @@ static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, 0 };
 int main(int argc, char **argv) {
     struct arguments arguments = { .verbose = 0, .url = "", .destdir = "" };
     struct host_info host_info = { .host = "", .path = "", .port = 80 };
-    int tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in peer;
-    int peerlen;
+    argp_parse (&argp, argc, argv, 0, 0, &arguments);
+    /* after calling argp_parse, all the info is in the arguments struct. */
+    struct addrinfo peer;
+    struct addrinfo *peerinfo;
+    int status = 0, tcp_socket;
+    parse_url(arguments.url, &host_info); /* This SEGFAULTs, but we can use as guide. */
 
-    peer.sin_family = AF_INET;
-    peer.sin_port = htons(80);
+    peer.ai_family = AF_UNSPEC;     //IPv4 or IPv6
+    peer.ai_socktype = SOCK_STREAM; //TCP stream sockets
+    peer.ai_flags = AI_CANONNAME;   //Fill in my IP for me
+
+    if ((status = getaddrinfo(host_info.host, "80", &peer, &peerinfo)) != 0) {
+        fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status)); //GAI
+        exit(EXIT_FAILURE);
+    }
+    //Create socket. Print out failed if socket cannot be created
+    if((tcp_socket = socket(peerinfo -> ai_family, peerinfo -> ai_socktype, peerinfo -> ai_protocol)) < 0){
+        perror("socket");
+        exit(EXIT_FAILURE);
+    }
+    if(bind(tcp_socket, peerinfo -> ai_addr, peerinfo -> ai_addrlen)){
+        perror("bind");
+        exit(EXIT_FAILURE);
+    }
+    if(connect(tcp_socket, peerinfo -> ai_addr, peerinfo -> ai_addrlen)){
+        perror("Connect()");
+        exit(EXIT_FAILURE);
+    }
+    printf("GET ");
+    scanf("%255s", host_info.path);
+    printf("Host: ");
+    scanf("%255s", host_info.host);
+
+#if DEBUG
+    printf("host: %s\n", arguments.url);
+#endif
 
     // HERE WE GO..
     // Client opens TCP connection to server on port 80
@@ -51,22 +86,18 @@ int main(int argc, char **argv) {
     //127.0.0.1. Instead, let's use INADDR_ANY, which states that the program
     //peer.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    bind(tcp_socket,(struct sockaddr *)&peer,sizeof(peer));
-
-    printf("GET ");
-    scanf("%255s", host_info.path);
-    printf("Host: ");
-    scanf("%255s", host_info.host);
+    /* The general way for a client to connect to a server is the following:
+     *
+     * socket() - make the socket
+     * bind() - bind the socket with the server information
+     * connect() - actually, connecting to the server
+     *
+     * From here, we can just call our send() and recv() functions.
+     * close() - close socket when we're done
+     */
 
     // Server sends response
     // Server closes TCP connection (Can client?)
-
-    listen(tcp_socket, 3);
-    peerlen = (socklen_t) sizeof(peer);
-    accept(tcp_socket,(struct sockaddr *)&peer, (socklen_t *) &peerlen);
-
-    argp_parse (&argp, argc, argv, 0, 0, &arguments);
-    parse_url(arguments.url, &host_info);
 
     close(tcp_socket); // Connection: close
     return 0;
@@ -74,7 +105,7 @@ int main(int argc, char **argv) {
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state){
     // Get the input argument from argp_parse, which we know is a pointer to our arguments structure.
-    struct arguments *arguments = state->input;
+    struct arguments *arguments = state -> input;
     switch (key){ // Figure out which option we are parsing, and decide how to store it
         case 'v':
             arguments -> verbose = 1;
