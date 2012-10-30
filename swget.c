@@ -44,12 +44,37 @@ int main(int argc, char **argv) {
     struct addrinfo peer;
     struct addrinfo *peerinfo;
     int status = 0, tcp_socket;
+#if DEBUG
+    printf("host: %s\n", arguments.url);
+#endif
+
     parse_url(arguments.url, &host_info); /* This SEGFAULTs, but we can use as guide. */
 
     peer.ai_family = AF_UNSPEC;     //IPv4 or IPv6
     peer.ai_socktype = SOCK_STREAM; //TCP stream sockets
     peer.ai_flags = AI_CANONNAME;   //Fill in my IP for me
 
+    /* TODO:
+     *
+     * So, basically at this point the socket is essentially set up. This is a
+     * list of things that we need to do.
+     *
+     * 1. Name resolution(ie: going from www.google.com to its IP address)
+     *      I think we can use the function getpeername() or something.
+     *      Check Beej's guide.
+     *
+     * 2. URL parsing: This part seems to be a bit challenging and is very
+     *      important to this project however. Once we test 1. with google.com
+     *      or something, then we can test the parser on(ie: google.com/about)
+     *
+     * 3. Create HTTP GET request header
+     * 4. Parse the HTTP return header from the server.
+     * 5. Handle redirects
+     * 6. Clean code
+     * 7. Testing/Debug
+     * 8. Done! :)
+     *
+     */
     if ((status = getaddrinfo(host_info.host, "80", &peer, &peerinfo)) != 0) {
         fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status)); //GAI
         exit(EXIT_FAILURE);
@@ -57,10 +82,6 @@ int main(int argc, char **argv) {
     //Create socket. Print out failed if socket cannot be created
     if((tcp_socket = socket(peerinfo -> ai_family, peerinfo -> ai_socktype, peerinfo -> ai_protocol)) < 0){
         perror("socket");
-        exit(EXIT_FAILURE);
-    }
-    if(bind(tcp_socket, peerinfo -> ai_addr, peerinfo -> ai_addrlen)){
-        perror("bind");
         exit(EXIT_FAILURE);
     }
     if(connect(tcp_socket, peerinfo -> ai_addr, peerinfo -> ai_addrlen)){
@@ -72,9 +93,6 @@ int main(int argc, char **argv) {
     printf("Host: ");
     scanf("%255s", host_info.host);
 
-#if DEBUG
-    printf("host: %s\n", arguments.url);
-#endif
 
     // HERE WE GO..
     // Client opens TCP connection to server on port 80
@@ -100,6 +118,7 @@ int main(int argc, char **argv) {
     // Server closes TCP connection (Can client?)
 
     close(tcp_socket); // Connection: close
+    freeaddrinfo(peerinfo);
     return 0;
 }
 
