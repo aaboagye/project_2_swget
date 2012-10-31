@@ -6,5 +6,5 @@ all:	swget
 swget:	swget.c swget.h
 	$(CC) $(CFLAGS) -o swget swget.c
 
-clean: swget
-	rm swget
+clean:
+	rm -f swget
