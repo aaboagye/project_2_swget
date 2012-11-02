@@ -4,7 +4,7 @@
  * Course: COMP 177 Computer Networking
  * Project: swget
  * Created on: October 24, 2012
- * Last Edited: October 26, 2012 */
+ * Last Edited: November 1, 2012 */
 
 #ifndef SWGET_H
 #define SWGET_H
@@ -26,6 +26,10 @@ struct host_info {
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state);
 
-static void parse_url(char *src_url, struct host_info *h);
+static void parse_url(char *url, struct host_info *h);
+
+//static void name_resolution(char *url, struct host_info *h); <--- Not needed anymore
+
+static void handle_redirect(char *url, struct host_info *h);
 
 #endif
