@@ -22,6 +22,7 @@
 #include <time.h>
 #include "swget.h"
 #define MAXDATASIZE 1024
+#define BLOCK_SIZE 512
 
 // Set up the argument parser
 const char *argp_program_version = "swget 1.0";
@@ -45,6 +46,10 @@ int main (int argc, char **argv) {
 	int status = 0, tcp_socket, recv_data;
 	char buffer[MAXDATASIZE];
 	char request[MAXDATASIZE];
+	FILE *target_file = NULL;
+	int bytes_read = BLOCK_SIZE + 1;
+	int bytes_left;							//How many bytes left in the buffer to send.
+	int total = 0;
 
     struct addrinfo peer;
     struct addrinfo *peerinfo;
@@ -58,6 +63,7 @@ int main (int argc, char **argv) {
 	struct host_info host_info = { .host = "", .path = "", .port = 80 }; // Default values
 
 	argp_parse (&argp, argc, argv, 0, 0, &arguments);
+	target_file = fopen(arguments.destdir, "w");
 
 	parse_url(arguments.url, &host_info);
 
@@ -109,17 +115,22 @@ int main (int argc, char **argv) {
             // GET /filename HTTP/1.1
             // Host: www.server.com
 
-	//send(int sockfd, const void *msg, int len, int flags);
-	if(send(tcp_socket, send_data, sizeof(host_info) + 1, 0) == -1) {
-		perror("Send()");
-		exit(EXIT_FAILURE);
+	bytes_left = sizeof(request);
+	while (total < bytes_left) { //Should break when we've sent out everything
+		bytes_sent = send(tcp_socket, request, bytes_left, 0);
+		if(bytes_sent == -1)
+			break;
+		total += bytes_sent;
+		bytes_left -= bytes_sent;
 	}
 
-	//int recv(int sockfd, void *buf, int len, int flags);
-	if((recv_data = recv(tcp_socket, buffer, sizeof(buffer), 0)) == -1) {
-		perror("Recv()");
-		exit(EXIT_FAILURE);
-	}
+	bytes_read = MAXDATASIZE + 1;	//To make sure we do it at least once.
+	while (bytes_read >= MAXDATASIZE) { //Should break if the buffer is not full.
+		bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
+		fwrite(buffer, 1, bytes_read, target_file);
+	} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
+	   * of the file on each write. I guess we'll find out when we try it. */
+
 
 	/* Call parse_url and parse the HTTP return header from the server
 	 * parse_url(arguments.url, &host_info);
@@ -167,6 +178,7 @@ int main (int argc, char **argv) {
 
     close(tcp_socket); //Connection close
     freeaddrinfo(peerinfo);
+    fclose(target_file);
     return 0;
 }
 
