@@ -24,6 +24,7 @@
 #define MAXDATASIZE 1024
 #define BLOCK_SIZE 512
 #define MAXDATASIZE_buffer 1024*6
+#define DEBUG 1
 
 //Set up the argument parser
 const char *argp_program_version = "swget 1.0";
@@ -44,12 +45,13 @@ static struct argp_option options[] = {
 static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, 0 };
 
 int main (int argc, char **argv) {
-	int status = 0, tcp_socket, recv_data;
+	int status = 0, tcp_socket;
 	char buffer[MAXDATASIZE_buffer];
 	char request[MAXDATASIZE];
 	FILE *target_file = NULL;
 	int bytes_read = BLOCK_SIZE + 1;
 	int bytes_left;							//How many bytes left in the buffer to send.
+	int bytes_sent;
 	int total = 0;
 	char response[MAXDATASIZE_buffer];
 
@@ -70,6 +72,22 @@ int main (int argc, char **argv) {
 
 	/* Declared send_data; now initialize it here!
 	 */
+
+	strcpy(request, "GET "); // TODO: Rest of the HTTP request
+	if(host_info.path[0] != '/')
+		strcat(request, "/");		//In order to not put an extra '/'
+	// add either '/' for www.foobar.com/ or the actual path.
+	strcat(request, host_info.path);
+	strcat(request,"\r\n");
+	strcat(request, "Host: ");
+	strcat(request, host_info.host);
+	strcat(request, "\r\n");
+	strcat(request, "Connection: close\r\n"); //To make things easier for now.
+	strcat(request, "\r\n"); //HTTP Header must end with a single \r\n on it's own.
+	// I believe request is done now.
+	#if DEBUG
+	printf("%s\n", request);
+	#endif
 
     peer.ai_family = AF_UNSPEC;     //IPv4 or IPv6
     peer.ai_socktype = SOCK_STREAM; //TCP stream sockets
@@ -110,12 +128,10 @@ int main (int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-	strcpy(request, "GET "); // TODO: Rest of the HTTP request
 
     // Client sends a request to the server:
             // GET /filename HTTP/1.1
             // Host: www.server.com
-
 	bytes_left = sizeof(request);
 	while (total < bytes_left) { //Should break when we've sent out everything
 		bytes_sent = send(tcp_socket, request, bytes_left, 0);
@@ -232,7 +248,7 @@ static void parse_url(char *url, struct host_info *h)	{
 	h -> host = (char *)malloc(len + 1);
 	strncpy(h -> host, it1, len);
 	h -> host[len] = 0;
-	printf("%s\n", h -> host);
+	//printf("%s\n", h -> host);
 
 // path
 	it1 = it2;
@@ -241,7 +257,7 @@ static void parse_url(char *url, struct host_info *h)	{
 	h -> path = (char *)malloc(len + 1);
 	strncpy(h -> path, it1, len);
 	h -> path[len] = 0;
-	printf("%s\n", h -> path);
+	//printf("%s\n", h -> path);
 }
 
 int parse_response(char *response) {
