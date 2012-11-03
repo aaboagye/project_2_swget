@@ -23,15 +23,16 @@
 #include "swget.h"
 #define MAXDATASIZE 1024
 #define BLOCK_SIZE 512
+#define MAXDATASIZE_buffer 1024*6
 
-// Set up the argument parser
+//Set up the argument parser
 const char *argp_program_version = "swget 1.0";
 const char *argp_program_bug_address = "<aseda.aboagye@gmail.com> or <tan.celena@gmail.com>";
 static char doc[] = "swget -- A Simple Web Download Utility";
 static char args_doc[] = "";  // No standard arguments i.e. arguments without "names"
 
-// Options.  Field 1 in ARGP.
-// Order of fields: {NAME, KEY, ARG, FLAGS, DOC, GROUP}.
+
+//Options.  Field 1 in ARGP. Order of fields: {NAME, KEY, ARG, FLAGS, DOC, GROUP}.
 static struct argp_option options[] = {
 		{"url",			'u', 	"URL",      0,  "URL of object to download", 							0 },
 		{"destdir",		'd', 	"DESTDIR",  0,  "Directory to save downloaded object to", 				0 },
@@ -44,17 +45,17 @@ static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, 0 };
 
 int main (int argc, char **argv) {
 	int status = 0, tcp_socket, recv_data;
-	char buffer[MAXDATASIZE];
+	char buffer[MAXDATASIZE_buffer];
 	char request[MAXDATASIZE];
 	FILE *target_file = NULL;
 	int bytes_read = BLOCK_SIZE + 1;
 	int bytes_left;							//How many bytes left in the buffer to send.
 	int total = 0;
+	char response[MAXDATASIZE_buffer];
 
     struct addrinfo peer;
     struct addrinfo *peerinfo;
 	struct arguments arguments = { .verbose = 0, .url = "", .destdir = "" };
-	char send_data[MAXDATASIZE];
 
 	time_t t;
 	time(&t);
@@ -82,7 +83,7 @@ int main (int argc, char **argv) {
      * 2. URL parsing: This part seems to be a bit challenging and is very    	<----DONE!
      *      important to this project. --> string tokenizer??
      * 3. Create HTTP GET request header										<----Work on it 11/1
-     * 4. Parse the HTTP return header from the server							<----DONE! Just call parse_url again?
+     * 4. Parse the HTTP return header from the server							<----DONE!
      * 5. Send & Recv															<----1/2 DONE!
      * 6. Handle redirects
      * 7. Need to create a file descriptor to actually download the file to disk.
@@ -132,49 +133,44 @@ int main (int argc, char **argv) {
 	   * of the file on each write. I guess we'll find out when we try it. */
 
 
-	/* Call parse_url and parse the HTTP return header from the server
-	 * parse_url(arguments.url, &host_info);
-	 */
+	strcpy(response, buffer);
 
 	//Check what response is
+	parse_response(response);
 
-	//if(response is 301 or 302)
-		//Call handle_redirect()
-	//else if (response is 200)
-			/*	VERBOSE OUTPUT!!!
-			 * 	if(strncmp(arguments.verbose, "yes", 3) == 0) {
-			 * 		printf("Downloading: %s\n", arguments.url);
-			 * 		printf("Resolving %s... %i.%i.%i.%i\n", );
-			 * 		printf("Connecting to %s|%i.%i.%i.%i|:%i... connected\n", );
-			 * 		printf("HTTP request sent, awaiting response...\n");
-			 * 		printf("Received HTTP response header: \n");
-			 * 		printf("HTTP/1.1 200 OK\n");
-			 * 		printf("Content-Length: %i\n", );
-			 * 		printf("Content-Type: %s\n", ); <-- This too!
-			 * 		printf("Last-Modified: %s\n", );
-			 * 		printf("Accept-Ranges: %s\n", );
-			 * 		printf("ETag: %s:%i\n", );
-			 * 		printf("Server: %s/%i.%i\n", );
-			 * 		printf("X-Powered-By: %s.%s\n", );
-			 *		printf("Date: %s\n", ctime(&t));
-			 *  	printf("Connection: %s\n", );
-			 *  	printf("Length: %i (%i.%s) [%s]\n", );
-			 *  	printf("Saving to: %s\n", arguments.destdir);
-			 *  	printf("Finished\n");
-			 *  }
-			 */
+	if(parse_response(response) == 301 || 302) {
+		handle_redirects(arguments.url, &host_info);
+	}
 
-			/* NON-VERBOSE OUTPUT
-			 * if(strncmp(arguments.verbose, "no", 2) == 0)	{
-			 * 		printf("Downloading: %s", arguments.url);
-			 * 		printf("Length: %i (%i.%s) [%s]", );
-			 * 		printf("Saving to: %s", arguments.destdir);
-			 * 		printf("Finished");
-			 * }
-			 */
-	//else(400 or 404)
+	else if (parse_response(response) == 200) {
+			//VERBOSE OUTPUT!!!
+			if(arguments.verbose == 1) {
+					printf("Downloading: %s\n", arguments.url);
+			  		printf("Resolving %s... %s\n", host_info.host, host_info.ip);
+			  		printf("Connecting to %s|%s|:80... connected\n", host_info.host, host_info.ip);
+			  		printf("HTTP request sent, awaiting response...\n");
+			  		printf("Received HTTP response header: \n");
+			  		printf("HTTP/1.1 200 OK\n");
+			  		printf("%s", response);
+			 		printf("Connection: close\n");
+			 		//printf("Length: %i (%i.%s) [%s]\n", );
+			 		printf("Saving to: %s\n", arguments.destdir);
+			 		printf("Finished\n");
+			 }
+
+			//NON-VERBOSE OUTPUT
+			if(arguments.verbose == 0) {
+			 		printf("Downloading: %s", arguments.url);
+			 		//printf("Length: %i (%i.%s) [%s]", );
+			 		printf("Saving to: %s", arguments.destdir);
+			 		printf("Finished");
+			}
+	}
+
+	else if(parse_response(response) == 400 || 404) {
 		//Output verbose or non verbose
 		//Bad request or no longer available
+	}
 
     close(tcp_socket); //Connection close
     freeaddrinfo(peerinfo);
@@ -214,20 +210,20 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
 }
 
 //Loop through string until second slash then the null bit
-void parse_url(char *url, struct host_info *h)	{
+static void parse_url(char *url, struct host_info *h)	{
 	char *it1, *it2;
 	int len;
 
 // http://
 	if(strncmp(url, "http://", 7) == 0)	{
-		it1 = url+7;
+		it1 = url + 7;
 	}
 
 	else {
-		it1 = url+0;
+		it1 = url + 0;
 	}
 
-// www.google.com
+// host
 	for(it2 = it1; *it2 != 0; it2++)
 		if(*it2 == '/')
 			break;
@@ -238,7 +234,7 @@ void parse_url(char *url, struct host_info *h)	{
 	h -> host[len] = 0;
 	printf("%s\n", h -> host);
 
-// /about/
+// path
 	it1 = it2;
 	for(; *it2 != 0; it2++)	{}
 	len = it2 - it1;
@@ -248,10 +244,44 @@ void parse_url(char *url, struct host_info *h)	{
 	printf("%s\n", h -> path);
 }
 
+int parse_response(char *response) {
+	char *it1;
+
+	it1 = response + 9;
+
+	if(strncmp(it1, "200", 3) == 0) 			return 200;	//OK
+	else if(strncmp(it1, "301", 3) == 0)		return 301; //Moved Permanently
+	else if(strncmp(it1, "302", 3) == 0)		return 302; //Found with a redirect
+	else if(strncmp(it1, "400", 3) == 0)		return 400; //Bad Request
+	else if(strncmp(it1, "404", 3) == 0)		return 404; //Not Found
+	else										return -1;
+}
+
+int parse_header(char *response) {
+	char *it1, *it2;
+	char header_len[255]; 	//Store content length and content type in this string
+							//Just add content length then append to it and add contend-type
+
+	it1 = response + 12;
+
+	for(it2 = it1; it2 != 0; it2++)
+		if(*it2 == 'C')
+			if(*it2 + 3 == 't')
+				if(*it2 + 1 == 'e')
+
+		break;
+
+	//Notes:
+	//Iterate through until you find capital C
+	//Then it + 3 to test if char is 't' for Content-Length
+	//Then it + 1 to test if char is 'e' for Content-Length
+
+	return -1;
+}
+
 void handle_redirects(char *url, struct host_info *h) {
 	//Obtain the new URL
 	//Parse the URL
 	//Call send
 	//Call recv
 }
-
