@@ -1,3 +1,11 @@
+/* Name & E-mail: Celena Tan            tan.celena@gmail.com
+ * Name & E-mail: Aseda Aboagye         aseda.aboagye@gmail.com
+ * File Name: swget.h
+ * Course: COMP 177 Computer Networking
+ * Project: swget
+ * Created on: October 24, 2012
+ * Last Edited: November 1, 2012 */
+
 #ifndef SWGET_H
 #define SWGET_H
 #include <argp.h>
@@ -22,7 +30,9 @@ static void parse_url(char *url, struct host_info *h);
 
 int parse_response(char *response);
 
-int parse_header(char *response);
+int parse_content_length(char *response);
+
+int parse_content_type(char *response);
 
 static void handle_redirects(char *url, struct host_info *h);
 
