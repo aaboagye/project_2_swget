@@ -100,14 +100,13 @@ int main (int argc, char **argv) {
      *      Use the function getaddrinfo() -- Check Beej's guide.
      * 2. URL parsing: This part seems to be a bit challenging and is very    	<----DONE!
      *      important to this project. --> string tokenizer??
-     * 3. Create HTTP GET request header										<----Work on it 11/1
+     * 3. Create HTTP GET request header										<----DONE!
      * 4. Parse the HTTP return header from the server							<----DONE!
-     * 5. Send & Recv															<----1/2 DONE!
+     * 5. Send & Recv															<----DONE!
      * 6. Handle redirects
-     * 7. Need to create a file descriptor to actually download the file to disk.
-     * 8. Create verbose and non-verbose functions?
-     * 9. Cleaning / Testing / Debugging
-     * 10.Done! Due 11/06/12 =)
+     * 7. Need to create a file descriptor to actually download the file to disk
+     * 8. Cleaning / Testing / Debugging
+     * 9. Done! Due 11/06/12 =)
      */
 
     //Client opens TCP connection to server on port 80
@@ -128,10 +127,7 @@ int main (int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-
-    // Client sends a request to the server:
-            // GET /filename HTTP/1.1
-            // Host: www.server.com
+    // Client sends a request to the server
 	bytes_left = sizeof(request);
 	while (total < bytes_left) { //Should break when we've sent out everything
 		bytes_sent = send(tcp_socket, request, bytes_left, 0);
@@ -169,7 +165,8 @@ int main (int argc, char **argv) {
 			  		printf("HTTP/1.1 200 OK\n");
 			  		printf("%s", response);
 			 		printf("Connection: close\n");
-			 		//printf("Length: %i (%i.%s) [%s]\n", );
+
+			 		printf("Length: %i [%s]\n", parse_content_length(response), (char *)parse_content_type(response));
 			 		printf("Saving to: %s\n", arguments.destdir);
 			 		printf("Finished\n");
 			 }
@@ -177,7 +174,7 @@ int main (int argc, char **argv) {
 			//NON-VERBOSE OUTPUT
 			if(arguments.verbose == 0) {
 			 		printf("Downloading: %s", arguments.url);
-			 		//printf("Length: %i (%i.%s) [%s]", );
+			 		printf("Length: %i [%s]\n", parse_content_length(response), (char *)parse_content_type(response));
 			 		printf("Saving to: %s", arguments.destdir);
 			 		printf("Finished");
 			}
@@ -262,7 +259,6 @@ static void parse_url(char *url, struct host_info *h)	{
 
 int parse_response(char *response) {
 	char *it1;
-
 	it1 = response + 9;
 
 	if(strncmp(it1, "200", 3) == 0) 			return 200;	//OK
@@ -273,26 +269,52 @@ int parse_response(char *response) {
 	else										return -1;
 }
 
-int parse_header(char *response) {
+int parse_content_length(char *response) {
 	char *it1, *it2;
-	char header_len[255]; 	//Store content length and content type in this string
+	int len; 	//Store content length and content type in this string
 							//Just add content length then append to it and add contend-type
 
-	it1 = response + 12;
+	it1 = response + 12;	//We know the first 12 bits belong to HTTP/1.1 200 so have it start (point) to the end
 
-	for(it2 = it1; it2 != 0; it2++)
+	for(it2 = it1; *it2 != 0; it2++)
 		if(*it2 == 'C')
-			if(*it2 + 3 == 't')
-				if(*it2 + 1 == 'e')
+			if(strncmp(it2, "Content-Length: ", 16) == 0) //This means its at Content-Length
+				break;
 
-		break;
+	it2 += 16;
+	it1 = it2;
 
-	//Notes:
-	//Iterate through until you find capital C
-	//Then it + 3 to test if char is 't' for Content-Length
-	//Then it + 1 to test if char is 'e' for Content-Length
+	for(; *it2 != 0; it2++)
+		if(strncmp(it2, "\n", 2) == 0)
+			break;
 
-	return -1;
+	len = it2 - it1;
+
+	return len;
+}
+
+int parse_content_type(char *response) {
+	char *it1, *it2;
+	int len; 	//Store content length and content type in this string
+							//Just add content length then append to it and add contend-type
+
+	it1 = response + 12;	//We know the first 12 bits belong to HTTP/1.1 200 so have it start (point) to the end
+
+	for(it2 = it1; *it2 != 0; it2++)
+		if(*it2 == 'C')
+			if(strncmp(it2, "Content-Type: ", 14) == 0) //This means its at Content-Type
+				break;
+
+	it2 += 14;
+	it1 = it2;
+
+	for(; *it2 != 0; it2++)
+		if(strncmp(it2, "\n", 2) == 0)
+			break;
+
+	len = it2 - it1;
+
+	return len;
 }
 
 void handle_redirects(char *url, struct host_info *h) {
