@@ -54,6 +54,7 @@ int main (int argc, char **argv) {
 	int bytes_sent;
 	int total = 0;
 	char response[MAXDATASIZE_buffer];
+	char *filename;
 
     struct addrinfo peer;
     struct addrinfo *peerinfo;
@@ -66,7 +67,6 @@ int main (int argc, char **argv) {
 	struct host_info host_info = { .host = "", .path = "", .port = 80 }; // Default values
 
 	argp_parse (&argp, argc, argv, 0, 0, &arguments);
-	target_file = fopen(arguments.destdir, "w");
 
 	parse_url(arguments.url, &host_info);
 
@@ -88,6 +88,12 @@ int main (int argc, char **argv) {
 	#if DEBUG
 	printf("%s\n", request);
 	#endif
+
+	if(request[1] == NULL){ // just foobar.com/
+		strcat(filename, "/index.html");
+	} else {
+		strcat(filename, host_info.path);
+		strcat(filename, "
 
     peer.ai_family = AF_UNSPEC;     //IPv4 or IPv6
     peer.ai_socktype = SOCK_STREAM; //TCP stream sockets
@@ -140,11 +146,11 @@ int main (int argc, char **argv) {
 	bytes_read = MAXDATASIZE + 1;	//To make sure we do it at least once.
 	while (bytes_read >= MAXDATASIZE) { //Should break if the buffer is not full.
 		bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
-		fwrite(buffer, 1, bytes_read, target_file);
 	} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
 	   * of the file on each write. I guess we'll find out when we try it. */
 
 
+	target_file = fopen(filename, "w");
 	strcpy(response, buffer);
 
 	//Check what response is
