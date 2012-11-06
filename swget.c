@@ -72,7 +72,6 @@ int main (int argc, char **argv) {
 
 	/* Declared send_data; now initialize it here!
 	 */
-
 	strcpy(request, "GET "); // TODO: Rest of the HTTP request
 	if(host_info.path[0] != '/')
 		strcat(request, "/");		//In order to not put an extra '/'
@@ -88,7 +87,6 @@ int main (int argc, char **argv) {
 	#if DEBUG
 	printf("%s\n", request);
 	#endif
-
     peer.ai_family = AF_UNSPEC;     //IPv4 or IPv6
     peer.ai_socktype = SOCK_STREAM; //TCP stream sockets
     peer.ai_flags = AI_CANONNAME;   //Fill in my IP for me
@@ -108,7 +106,6 @@ int main (int argc, char **argv) {
      * 8. Cleaning / Testing / Debugging
      * 9. Done! Due 11/06/12 =)
      */
-
     //Client opens TCP connection to server on port 80
     if ((status = getaddrinfo(host_info.host, "80", &peer, &peerinfo)) != 0) {
         fprintf(stderr, "Getaddrinfo ERROR: %s\n", gai_strerror(status)); //GAI
@@ -138,20 +135,22 @@ int main (int argc, char **argv) {
 	}
 
 	bytes_read = MAXDATASIZE + 1;	//To make sure we do it at least once.
+
+
+	//Seg faults here
 	while (bytes_read >= MAXDATASIZE) { //Should break if the buffer is not full.
 		bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
 		fwrite(buffer, 1, bytes_read, target_file);
 	} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
 	   * of the file on each write. I guess we'll find out when we try it. */
 
-
 	strcpy(response, buffer);
 
 	//Check what response is
 	parse_response(response);
 
-	if(parse_response(response) == 301 || 302) {
-		arguments.url = (char *)parse_redirect(response); 	//Response parse through to get new URL
+	if(parse_response(response) == 301 || 302) { //Redirected
+		arguments.url = parse_redirect(response); 	//Response parse through to get new URL
 													//Store new URL in arguments.url
 		parse_url(arguments.url, &host_info);
 
@@ -282,7 +281,7 @@ static void parse_url(char *url, struct host_info *h)	{
 	h -> host = (char *)malloc(len + 1);
 	strncpy(h -> host, it1, len);
 	h -> host[len] = 0;
-	//printf("%s\n", h -> host);
+	printf("%s\n", h -> host);
 
 // path
 	it1 = it2;
@@ -291,7 +290,7 @@ static void parse_url(char *url, struct host_info *h)	{
 	h -> path = (char *)malloc(len + 1);
 	strncpy(h -> path, it1, len);
 	h -> path[len] = 0;
-	//printf("%s\n", h -> path);
+	printf("%s\n", h -> path);
 }
 
 int parse_response(char *response) {
@@ -322,7 +321,7 @@ int parse_content_length(char *response) {
 	it1 = it2;
 
 	for(; *it2 != 0; it2++)
-		if(strncmp(it2, "\n", 2) == 0)
+		if(strncmp(it2, "\r\n", 2) == 0)
 			break;
 
 	len = it2 - it1;
@@ -346,7 +345,7 @@ int parse_content_type(char *response) {
 	it1 = it2;
 
 	for(; *it2 != 0; it2++)
-		if(strncmp(it2, "\n", 2) == 0)
+		if(strncmp(it2, "\r\n", 2) == 0)
 			break;
 
 	len = it2 - it1;
@@ -354,7 +353,7 @@ int parse_content_type(char *response) {
 	return len;
 }
 
-int parse_redirect(char *response) {
+char * parse_redirect(char *response) {
 	char *it1, *it2;
 	int len; 	//Store content length and content type in this string
 							//Just add content length then append to it and add contend-type
@@ -370,10 +369,13 @@ int parse_redirect(char *response) {
 	it1 = it2;
 
 	for(; *it2 != 0; it2++)
-		if(strncmp(it2, "\n", 2) == 0)
+		if(strncmp(it2, "\r\n", 2) == 0)
 			break;
 
 	len = it2 - it1;
 
-	return len;
+	char *redir = (char *)malloc(len+1);
+	strncpy(redir, it1, len);
+	redir[len] = 0;
+	return redir;
 }
