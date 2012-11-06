@@ -54,7 +54,9 @@ int main (int argc, char **argv) {
 	int bytes_sent;
 	int total = 0;
 	char response[MAXDATASIZE_buffer];
+	char http_response[MAXDATASIZE_buffer];
 	char filename[256];
+	char *content;
 
     struct addrinfo peer;
     struct addrinfo *peerinfo;
@@ -153,15 +155,20 @@ int main (int argc, char **argv) {
 	//Seg faults here
 	while (bytes_read >= MAXDATASIZE) { //Should break if the buffer is not full.
 		bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
-		fwrite(buffer, sizeof(buffer[0]), sizeof(buffer)/sizeof(buffer[0]), target_file);
-	} /* For fwritete, I'm not sure if it resets the file pointer to the beginning
+		strcat(http_response, buffer);
+	} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
 	   * of the file on each write. I guess we'll find out when we try it. */
+	content = strstr(http_response, "\r\n\r\n");
+	printf("response: %0x\t found: %0x\n", (unsigned) http_response, (unsigned)content);
+	if(content)
+		content += 4;
+	fwrite(content, sizeof(content[0]), sizeof(content)/sizeof(content[0]), target_file);
 #if DEBUG
 	printf("Response received\n");
 #endif
 	strcpy(response, buffer);
 #if DEBUG
-	printf("buffer: %s\n", buffer);
+	printf("buffer: %s\n", content);
 #endif
 	//Check what response is
 	parse_response(response);
