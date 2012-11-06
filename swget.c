@@ -4,7 +4,7 @@
  * Course: COMP 177 Computer Networking
  * Project: swget
  * Created on: October 24, 2012
- * Last Edited: November 1, 2012 */
+ * Last Edited: November 5, 2012 */
 
 #include <sys/types.h>
 #include <stdio.h>			// Provides for printf, etc...
@@ -66,12 +66,9 @@ int main (int argc, char **argv) {
 	struct host_info host_info = { .host = "", .path = "", .port = 80 }; // Default values
 
 	argp_parse (&argp, argc, argv, 0, 0, &arguments);
+	target_file = fopen(arguments.destdir, "w");
+
 	parse_url(arguments.url, &host_info);
-	char filename[MAXDATASIZE];
-	strcpy(filename, arguments.destdir);
-	strcat(filename, host_info.path);
-	printf("%s\n", filename);
-/*	target_file = fopen(arguments.destdir, "w"); */
 
 	/* Declared send_data; now initialize it here!
 	 */
@@ -103,6 +100,7 @@ int main (int argc, char **argv) {
      *      Use the function getaddrinfo() -- Check Beej's guide.
      * 2. URL parsing: This part seems to be a bit challenging and is very    	<----DONE!
      *      important to this project. --> string tokenizer??
+     * 3. Create HTTP GET request header										<----DONE!
      * 4. Parse the HTTP return header from the server							<----DONE!
      * 5. Send & Recv															<----DONE!
      * 6. Handle redirects
@@ -142,11 +140,9 @@ int main (int argc, char **argv) {
 	bytes_read = MAXDATASIZE + 1;	//To make sure we do it at least once.
 	while (bytes_read >= MAXDATASIZE) { //Should break if the buffer is not full.
 		bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
-		/*fwrite(buffer, 1, bytes_read, target_file);*/
+		fwrite(buffer, 1, bytes_read, target_file);
 	} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
 	   * of the file on each write. I guess we'll find out when we try it. */
-
-	int fd; // File descriptor
 
 
 	strcpy(response, buffer);
@@ -155,7 +151,46 @@ int main (int argc, char **argv) {
 	parse_response(response);
 
 	if(parse_response(response) == 301 || 302) {
-		handle_redirects(arguments.url, &host_info);
+		arguments.url = (char *)parse_redirect(response); 	//Response parse through to get new URL
+													//Store new URL in arguments.url
+		parse_url(arguments.url, &host_info);
+
+			//Client opens TCP connection to server on port 80
+		    if ((status = getaddrinfo(host_info.host, "80", &peer, &peerinfo)) != 0) {
+		        fprintf(stderr, "Getaddrinfo ERROR: %s\n", gai_strerror(status)); //GAI
+		        exit(EXIT_FAILURE);
+		    }
+
+		    //Creating socket
+		    if((tcp_socket = socket(peerinfo -> ai_family, peerinfo -> ai_socktype, peerinfo -> ai_protocol)) < 0){
+		        perror("Socket()");
+		        exit(EXIT_FAILURE);
+		    }
+
+		    //Connecting to the server
+		    if(connect(tcp_socket, peerinfo -> ai_addr, peerinfo -> ai_addrlen)) {
+		        perror("Connect()");
+		        exit(EXIT_FAILURE);
+		    }
+
+		    // Client sends a request to the server
+			bytes_left = sizeof(request);
+			while (total < bytes_left) { //Should break when we've sent out everything
+				bytes_sent = send(tcp_socket, request, bytes_left, 0);
+				if(bytes_sent == -1)
+					break;
+				total += bytes_sent;
+				bytes_left -= bytes_sent;
+			}
+
+			bytes_read = MAXDATASIZE + 1;	//To make sure we do it at least once.
+			while (bytes_read >= MAXDATASIZE) { //Should break if the buffer is not full.
+				bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
+				fwrite(buffer, 1, bytes_read, target_file);
+			} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
+			   * of the file on each write. I guess we'll find out when we try it. */
+
+			strcpy(response, buffer);
 	}
 
 	else if (parse_response(response) == 200) {
@@ -169,7 +204,6 @@ int main (int argc, char **argv) {
 			  		printf("HTTP/1.1 200 OK\n");
 			  		printf("%s", response);
 			 		printf("Connection: close\n");
-
 			 		printf("Length: %i [%s]\n", parse_content_length(response), (char *)parse_content_type(response));
 			 		printf("Saving to: %s\n", arguments.destdir);
 			 		printf("Finished\n");
@@ -185,8 +219,7 @@ int main (int argc, char **argv) {
 	}
 
 	else if(parse_response(response) == 400 || 404) {
-		//Output verbose or non verbose
-		//Bad request or no longer available
+		printf("%s", response);
 	}
 
     close(tcp_socket); //Connection close
@@ -321,9 +354,26 @@ int parse_content_type(char *response) {
 	return len;
 }
 
-void handle_redirects(char *url, struct host_info *h) {
-	//Obtain the new URL
-	//Parse the URL
-	//Call send
-	//Call recv
+int parse_redirect(char *response) {
+	char *it1, *it2;
+	int len; 	//Store content length and content type in this string
+							//Just add content length then append to it and add contend-type
+
+	it1 = response + 12;	//We know the first 12 bits belong to HTTP/1.1 200 so have it start (point) to the end
+
+	for(it2 = it1; *it2 != 0; it2++)
+		if(*it2 == 'L')
+			if(strncmp(it2, "Location: ", 10) == 0) //This means its at the redirected location
+				break;
+
+	it2 += 10;
+	it1 = it2;
+
+	for(; *it2 != 0; it2++)
+		if(strncmp(it2, "\n", 2) == 0)
+			break;
+
+	len = it2 - it1;
+
+	return len;
 }
