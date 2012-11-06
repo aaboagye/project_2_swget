@@ -66,9 +66,12 @@ int main (int argc, char **argv) {
 	struct host_info host_info = { .host = "", .path = "", .port = 80 }; // Default values
 
 	argp_parse (&argp, argc, argv, 0, 0, &arguments);
-	target_file = fopen(arguments.destdir, "w");
-
 	parse_url(arguments.url, &host_info);
+	char filename[MAXDATASIZE];
+	strcpy(filename, arguments.destdir);
+	strcat(filename, host_info.path);
+	printf("%s\n", filename);
+/*	target_file = fopen(arguments.destdir, "w"); */
 
 	/* Declared send_data; now initialize it here!
 	 */
@@ -100,7 +103,7 @@ int main (int argc, char **argv) {
      *      Use the function getaddrinfo() -- Check Beej's guide.
      * 2. URL parsing: This part seems to be a bit challenging and is very    	<----DONE!
      *      important to this project. --> string tokenizer??
-     * 3. Create HTTP GET request header										<----Work on it 11/1
+     * 3. Create HTTP GET request header										<----Work on it 11/1 DONE!
      * 4. Parse the HTTP return header from the server							<----DONE!
      * 5. Send & Recv															<----1/2 DONE!
      * 6. Handle redirects
@@ -144,9 +147,11 @@ int main (int argc, char **argv) {
 	bytes_read = MAXDATASIZE + 1;	//To make sure we do it at least once.
 	while (bytes_read >= MAXDATASIZE) { //Should break if the buffer is not full.
 		bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
-		fwrite(buffer, 1, bytes_read, target_file);
+		/*fwrite(buffer, 1, bytes_read, target_file);*/
 	} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
 	   * of the file on each write. I guess we'll find out when we try it. */
+
+	int fd; // File descriptor
 
 
 	strcpy(response, buffer);
