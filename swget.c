@@ -45,13 +45,14 @@ static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, 0 };
 
 int main (int argc, char **argv) {
 	int status = 0, tcp_socket;
-	char buffer[MAXDATASIZE_buffer];
+	char buffer[MAXDATASIZE_buffer], *filebuffer;
 	char request[MAXDATASIZE];
 	FILE *target_file = NULL;
 	int bytes_read;
 	int bytes_left;							//How many bytes left in the buffer to send.
 	int bytes_sent;
 	int total = 0;
+	int changeover = 0;
 	char response[MAXDATASIZE_buffer];
 	char *fileparseptr, *temp_ptr;
 	char filename[256];
@@ -89,7 +90,6 @@ int main (int argc, char **argv) {
 	 *				filename = destdir + rest. */
 
 	 // Finding out what to set the filename to.
-	printf("starting filename parsing...\n");
 	fileparseptr = strstr(arguments.url, ".");
 	fileparseptr = strstr(fileparseptr, "/");
 	if (fileparseptr == NULL) {
@@ -125,16 +125,7 @@ int main (int argc, char **argv) {
 	strcat(request, "Connection: close\r\n"); //To make things easier for now.
 	strcat(request, "\r\n"); //HTTP Header must end with a single \r\n on it's own.
 	// I believe request is done now.
-	#if DEBUG
-	printf("%s\n", request);
-	#endif
 
-	if(request[1] == NULL){ // just foobar.com/
-		strcat(filename, "/index.html");
-	} else {
-		strcat(filename, host_info.path);
-		strcat(filename, "");
-	}
     peer.ai_family = AF_UNSPEC;     //IPv4 or IPv6
     peer.ai_socktype = SOCK_STREAM; //TCP stream sockets
     peer.ai_flags = AI_CANONNAME;   //Fill in my IP for me
@@ -187,16 +178,17 @@ int main (int argc, char **argv) {
 	printf("File opened: \"%s\"\n", filename);
 	//Seg faults here
 	while (bytes_read >= MAXDATASIZE_buffer) { //Should break if the buffer is not full.
-		bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
-		fwrite(buffer, sizeof(buffer[0]), sizeof(buffer)/sizeof(buffer[0]), target_file);
-	} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
-	   * of the file on each write. I guess we'll find out when we try it. */
+		if(changeover == 0){
+			bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
+			filebuffer = strstr(buffer, "\r\n\r\n");
+			if(filebuffer == NULL)
+				changeover = 1;
+		} else {
+			bytes_read = recv(tcp_socket, filebuffer, sizeof(filebuffer), 0);
+			fwrite(filebuffer, sizeof(filebuffer[0]), sizeof(filebuffer)/sizeof(filebuffer[0]), target_file);
+		}
+	}
 
-	content = strstr(http_response, "\r\n\r\n");
-	//printf("response: %0x\t found: %0x\n", (unsigned) http_response, (unsigned)content);
-	if(content)
-		content += 4;
-	fwrite(content, sizeof(content[0]), sizeof(content)/sizeof(content[0]), target_file);
 #if DEBUG
 	printf("Response received\n");
 #endif
