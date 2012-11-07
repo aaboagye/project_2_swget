@@ -32,8 +32,8 @@ int parse_response(char *response);
 
 int parse_content_length(char *response);
 
-int parse_content_type(char *response);
+char *parse_content_type(char *response);    //Maybe take a look
 
-char* parse_redirect(char *response);
+char *parse_redirect(char *response);
 
 #endif
