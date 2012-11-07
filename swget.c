@@ -6,6 +6,23 @@
  * Created on: October 24, 2012
  * Last Edited: November 5, 2012 */
 
+
+/* http://www.google.com/images/logos/google_logo_41.png (Works but doesn't save correctly)
+ * http://www.google.com/about/products/ (Works but doesn't save correctly)
+ * http://www.pacific.edu/Documents/registrar/acrobat/2010-2011-catalog.pdf (should produce a binary file)
+     * For other big files to download, consider the PDF slides for this class in the Resources section!
+ * http://www.google.com (Works but doesn't save correctly)
+ * www.google.com (Works but doesn't save correctly)
+ * google.com (Works but doesn't save correctly)
+ * google.com/about/ (Works but doesn't save correctly)
+ * 74.125.224.144/about/ (Works but doesn't save correctly)
+ * www.google.com/non-existent-page.html (Works but doesn't save correctly) Produces a 404! :D
+ * google/about  (should not work! Either detect this error immediately, or try to do a DNS lookup on "google" & fail)
+	 * FAIL!!
+ * yahoo.com/privacy  (Does several redirects in a row)
+ 	 * FAIL!!
+*/
+
 #include <sys/types.h>
 #include <stdio.h>			// Provides for printf, etc...
 #include <stdlib.h>			// Provides for exit, ...
@@ -236,6 +253,8 @@ int main (int argc, char **argv) {
 
 			bytes_read = MAXDATASIZE + 1;	//To make sure we do it at least once.
 			while (bytes_read >= MAXDATASIZE) { //Should break if the buffer is not full.
+				//cannot read google.com/about only google.com/about/
+				//cannot read 74.125.224.144/about only 74.125.224.144/about/
 				bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
 				fwrite(buffer, 1, bytes_read, target_file);
 			} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
@@ -435,3 +454,4 @@ char *parse_redirect(char *response) {
 	redir[len] = 0;
 	return redir;
 }
+
