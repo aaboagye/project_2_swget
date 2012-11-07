@@ -156,7 +156,7 @@ int main (int argc, char **argv) {
      */
     //Client opens TCP connection to server on port 80
     if ((status = getaddrinfo(host_info.host, "80", &peer, &peerinfo)) != 0) {
-        fprintf(stderr, "Getaddrinfo ERROR: %s\n", gai_strerror(status)); //GAI
+        fprintf(stderr, "Getaddrinfo ERROR1: %s\n", gai_strerror(status)); //GAI
         exit(EXIT_FAILURE);
     }
 
@@ -185,28 +185,35 @@ int main (int argc, char **argv) {
 	bytes_read = MAXDATASIZE_buffer + 1;	//To make sure we do it at least once.
 	target_file = fopen(filename, "w+"); //open file for writing/appending
 	printf("File opened: \"%s\"\n", filename);
-
 	//Seg faults here
 	while (bytes_read >= MAXDATASIZE_buffer) { //Should break if the buffer is not full.
 		bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
 		fwrite(buffer, sizeof(buffer[0]), sizeof(buffer)/sizeof(buffer[0]), target_file);
 	} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
 	   * of the file on each write. I guess we'll find out when we try it. */
-	printf("done reading.\n");
 
+	content = strstr(http_response, "\r\n\r\n");
+	//printf("response: %0x\t found: %0x\n", (unsigned) http_response, (unsigned)content);
+	if(content)
+		content += 4;
+	fwrite(content, sizeof(content[0]), sizeof(content)/sizeof(content[0]), target_file);
+#if DEBUG
+	printf("Response received\n");
+#endif
 	strcpy(response, buffer);
 
 	//Check what response is
 	parse_response(response);
 
-	if(parse_response(response) == 301 || 302) { //Redirected
+	if((parse_response(response) == 301) || (parse_response(response) == 302)) { //Redirected
 		arguments.url = parse_redirect(response); 	//Response parse through to get new URL
 													//Store new URL in arguments.url
 		parse_url(arguments.url, &host_info);
 
 			//Client opens TCP connection to server on port 80
+			//Need to fix this!
 		    if ((status = getaddrinfo(host_info.host, "80", &peer, &peerinfo)) != 0) {
-		        fprintf(stderr, "Getaddrinfo ERROR: %s\n", gai_strerror(status)); //GAI
+		        fprintf(stderr, "Getaddrinfo ERROR2: %s\n", gai_strerror(status)); //GAI
 		        exit(EXIT_FAILURE);
 		    }
 
@@ -245,25 +252,24 @@ int main (int argc, char **argv) {
 	else if (parse_response(response) == 200) {
 			//VERBOSE OUTPUT!!!
 			if(arguments.verbose == 1) {
-					printf("Downloading: %s\n", arguments.url);
-			  		printf("Resolving %s... %s\n", host_info.host, host_info.ip);
-			  		printf("Connecting to %s|%s|:80... connected\n", host_info.host, host_info.ip);
-			  		printf("HTTP request sent, awaiting response...\n");
-			  		printf("Received HTTP response header: \n");
-			  		printf("HTTP/1.1 200 OK\n");
-			  		printf("%s", response);
-			 		printf("Connection: close\n");
-			 		printf("Length: %i [%s]\n", parse_content_length(response), (char *)parse_content_type(response));
-			 		printf("Saving to: %s\n", arguments.destdir);
-			 		printf("Finished\n");
+					printf("\nDownloading: %s", arguments.url);
+			  		printf("\nResolving %s... %s", host_info.host, host_info.ip); //Need to get IP still
+			  		printf("\nConnecting to %s|%s|:80... connected", host_info.host, host_info.ip);
+			  		printf("\nHTTP request sent, awaiting response...");
+			  		printf("\nReceived HTTP response header: ");
+			  		printf("\n\n%s\n\n", response);
+			 		printf("\nConnection: close");
+			 		//printf("\nLength: %i [%s]", parse_content_length(response), parse_content_type(response));
+			 		printf("\nSaving to: %s", arguments.destdir);
+			 		printf("\nFinished\n");
 			 }
 
 			//NON-VERBOSE OUTPUT
 			if(arguments.verbose == 0) {
-			 		printf("Downloading: %s", arguments.url);
-			 		printf("Length: %i [%s]\n", parse_content_length(response), (char *)parse_content_type(response));
-			 		printf("Saving to: %s", arguments.destdir);
-			 		printf("Finished");
+			 		printf("\nDownloading: %s", arguments.url);
+			 		printf("\nLength: %i [%s]", parse_content_length(response), parse_content_type(response));
+			 		printf("\nSaving to: %s", arguments.destdir);
+			 		printf("\nFinished\n");
 			}
 	}
 
@@ -347,6 +353,8 @@ int parse_response(char *response) {
 	char *it1;
 	it1 = response + 9;
 
+	//printf("\n%s\n", it1);
+
 	if(strncmp(it1, "200", 3) == 0) 			return 200;	//OK
 	else if(strncmp(it1, "301", 3) == 0)		return 301; //Moved Permanently
 	else if(strncmp(it1, "302", 3) == 0)		return 302; //Found with a redirect
@@ -379,7 +387,7 @@ int parse_content_length(char *response) {
 	return len;
 }
 
-int parse_content_type(char *response) {
+char *parse_content_type(char *response) {
 	char *it1, *it2;
 	int len; 	//Store content length and content type in this string
 							//Just add content length then append to it and add contend-type
@@ -400,10 +408,13 @@ int parse_content_type(char *response) {
 
 	len = it2 - it1;
 
-	return len;
+	char *type = (char *)malloc(len + 1);
+	strncpy(type, it1, len);
+	type[len] = 0;
+	return type;
 }
 
-char * parse_redirect(char *response) {
+char *parse_redirect(char *response) {
 	char *it1, *it2;
 	int len; 	//Store content length and content type in this string
 							//Just add content length then append to it and add contend-type
