@@ -22,7 +22,7 @@
 #include <time.h>
 #include "swget.h"
 #define MAXDATASIZE 1024
-#define MAXDATASIZE_buffer 1024*6
+#define MAXDATASIZE_buffer 1024*8
 #define DEBUG 1
 
 //Set up the argument parser
@@ -91,6 +91,10 @@ int main (int argc, char **argv) {
 
 	 // Finding out what to set the filename to.
 	fileparseptr = strstr(arguments.url, ".");
+	if(fileparseptr == NULL){
+		printf("Invalid URL\n");
+		return -1;
+	}
 	fileparseptr = strstr(fileparseptr, "/");
 	if (fileparseptr == NULL) {
 		strcpy(filename, arguments.destdir);
@@ -118,7 +122,7 @@ int main (int argc, char **argv) {
 		strcat(request, "/");		//In order to not put an extra '/'
 	// add either '/' for www.foobar.com/ or the actual path.
 	strcat(request, host_info.path);
-	strcat(request,"\r\n");
+	strcat(request, " HTTP/1.1\r\n");
 	strcat(request, "Host: ");
 	strcat(request, host_info.host);
 	strcat(request, "\r\n");
@@ -179,19 +183,18 @@ int main (int argc, char **argv) {
 	//Seg faults here
 	while (bytes_read >= MAXDATASIZE_buffer) { //Should break if the buffer is not full.
 		if(changeover == 0){
-			bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
-			filebuffer = strstr(buffer, "\r\n\r\n");
-			if(filebuffer == NULL)
+			bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0); //read the buffer
+			filebuffer = strstr(buffer, "\r\n\r\n"); //find
+			if(filebuffer != NULL){
+				fwrite(filebuffer+4, sizeof(buffer[0]), (((sizeof buffer) - (filebuffer - (char *)&buffer)) - 4), target_file);
 				changeover = 1;
+			}
 		} else {
-			bytes_read = recv(tcp_socket, filebuffer, sizeof(filebuffer), 0);
-			fwrite(filebuffer, sizeof(filebuffer[0]), sizeof(filebuffer)/sizeof(filebuffer[0]), target_file);
+			bytes_read = recv(tcp_socket, filebuffer, sizeof(buffer), 0);
+			fwrite(filebuffer, sizeof(buffer[0]), (sizeof(buffer)/sizeof(buffer[0])), target_file);
 		}
 	}
 
-#if DEBUG
-	printf("Response received\n");
-#endif
 	strcpy(response, buffer);
 
 	//Check what response is
