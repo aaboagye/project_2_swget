@@ -53,7 +53,8 @@ int main (int argc, char **argv) {
 	int bytes_sent;
 	int total = 0;
 	char response[MAXDATASIZE_buffer];
-	char *filename;
+	char *fileparseptr, *temp_ptr;
+	char filename[256];
 
     struct addrinfo peer;
     struct addrinfo *peerinfo;
@@ -71,15 +72,47 @@ int main (int argc, char **argv) {
 
 	/* Declared send_data; now initialize it here!
 	 */
-	filename = strrchr(arguments.destdir, '/');
-	if(strcmp(host_info.path, "") == 0){
-		strcat(filename, "index.html");
+	/*
+	 * Find '.'
+	 * search forward '/'
+	 * if fail,
+	 *		filename = destdir + /index.html;
+	 * else
+	 *		if at the end of string
+	 * 			filename = destdir + /index.html;
+	 *		else
+	 *			find last '/'
+	 *			find '.'
+	 *			if fail
+	 *				filename = destdir + /index.html
+	 *			else
+	 *				filename = destdir + rest. */
+
+	 // Finding out what to set the filename to.
+	printf("starting filename parsing...\n");
+	fileparseptr = strstr(arguments.url, ".");
+	fileparseptr = strstr(fileparseptr, "/");
+	if (fileparseptr == NULL) {
+		strcpy(filename, arguments.destdir);
+		strcat(filename, "/index.html");
 	} else {
-		strcat(filename, host_info.path);
+		if ((fileparseptr + 1) == '\0') { // are we at the end of the string?
+			strcpy(filename, arguments.destdir);
+			strcat(filename, "/index.html");
+		} else {
+			fileparseptr = strrchr(fileparseptr, '/'); // look for last '/'
+			temp_ptr = fileparseptr;
+			fileparseptr = strstr(fileparseptr, ".");
+			if (fileparseptr == NULL) {
+				strcpy(filename, arguments.destdir);
+				strcat(filename, "/index.html");
+			} else {
+				strcpy(filename, arguments.destdir);
+				strcat(filename, (temp_ptr));
+			}
+		}
 	}
-#if DEBUG
-	printf("filename: %s\n", filename);
-#endif
+
 	strcpy(request, "GET ");
 	if(host_info.path[0] != '/')
 		strcat(request, "/");		//In order to not put an extra '/'
@@ -93,9 +126,15 @@ int main (int argc, char **argv) {
 	strcat(request, "\r\n"); //HTTP Header must end with a single \r\n on it's own.
 	// I believe request is done now.
 	#if DEBUG
-		printf("%s\n", request);
+	printf("%s\n", request);
 	#endif
 
+	if(request[1] == NULL){ // just foobar.com/
+		strcat(filename, "/index.html");
+	} else {
+		strcat(filename, host_info.path);
+		strcat(filename, "");
+	}
     peer.ai_family = AF_UNSPEC;     //IPv4 or IPv6
     peer.ai_socktype = SOCK_STREAM; //TCP stream sockets
     peer.ai_flags = AI_CANONNAME;   //Fill in my IP for me
@@ -142,25 +181,21 @@ int main (int argc, char **argv) {
 		total += bytes_sent;
 		bytes_left -= bytes_sent;
 	}
-#if DEBUG
-	printf("Request sent.\n");
-#endif
 
 	bytes_read = MAXDATASIZE_buffer + 1;	//To make sure we do it at least once.
-	target_file = fopen(filename, "a"); //open file for writing/appending
+	target_file = fopen(filename, "w+"); //open file for writing/appending
+	printf("File opened: \"%s\"\n", filename);
+
 	//Seg faults here
 	while (bytes_read >= MAXDATASIZE_buffer) { //Should break if the buffer is not full.
 		bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
 		fwrite(buffer, sizeof(buffer[0]), sizeof(buffer)/sizeof(buffer[0]), target_file);
 	} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
 	   * of the file on each write. I guess we'll find out when we try it. */
-#if DEBUG
-	printf("Response received\n");
-#endif
+	printf("done reading.\n");
+
 	strcpy(response, buffer);
-#if DEBUG
-	printf("buffer: %s\n", buffer);
-#endif
+
 	//Check what response is
 	parse_response(response);
 
@@ -197,13 +232,13 @@ int main (int argc, char **argv) {
 				bytes_left -= bytes_sent;
 			}
 
-			fopen(filename, "w");
 			bytes_read = MAXDATASIZE + 1;	//To make sure we do it at least once.
 			while (bytes_read >= MAXDATASIZE) { //Should break if the buffer is not full.
 				bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0);
+				fwrite(buffer, 1, bytes_read, target_file);
 			} /* For fwrite, I'm not sure if it resets the file pointer to the beginning
 			   * of the file on each write. I guess we'll find out when we try it. */
-			// I should fwrite on each call in recv.
+
 			strcpy(response, buffer);
 	}
 
