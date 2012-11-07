@@ -180,8 +180,8 @@ int main (int argc, char **argv) {
 	bytes_read = MAXDATASIZE_buffer + 1;	//To make sure we do it at least once.
 	target_file = fopen(filename, "w+"); //open file for writing/appending
 	printf("File opened: \"%s\"\n", filename);
-	//Seg faults here
-	while (bytes_read >= MAXDATASIZE_buffer) { //Should break if the buffer is not full.
+	//TODO: Change terminating condition or find out why it doesn't work.
+	while (bytes_read) { //Should break if the buffer is not full.
 		if(changeover == 0){
 			bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0); //read the buffer
 			filebuffer = strstr(buffer, "\r\n\r\n"); //find
