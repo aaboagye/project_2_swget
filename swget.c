@@ -6,23 +6,6 @@
  * Created on: October 24, 2012
  * Last Edited: November 5, 2012 */
 
-
-/* http://www.google.com/images/logos/google_logo_41.png (Works but doesn't save correctly)
- * http://www.google.com/about/products/ (Works but doesn't save correctly)
- * http://www.pacific.edu/Documents/registrar/acrobat/2010-2011-catalog.pdf (should produce a binary file)
-     * For other big files to download, consider the PDF slides for this class in the Resources section!
- * http://www.google.com (Works but doesn't save correctly)
- * www.google.com (Works but doesn't save correctly)
- * google.com (Works but doesn't save correctly)
- * google.com/about/ (Works but doesn't save correctly)
- * 74.125.224.144/about/ (Works but doesn't save correctly)
- * www.google.com/non-existent-page.html (Works but doesn't save correctly) Produces a 404! :D
- * google/about  (should not work! Either detect this error immediately, or try to do a DNS lookup on "google" & fail)
-	 * FAIL!!
- * yahoo.com/privacy  (Does several redirects in a row)
- 	 * FAIL!!
-*/
-
 #include <sys/types.h>
 #include <stdio.h>			// Provides for printf, etc...
 #include <stdlib.h>			// Provides for exit, ...
@@ -39,7 +22,7 @@
 #include <time.h>
 #include "swget.h"
 #define MAXDATASIZE 1024
-#define MAXDATASIZE_buffer 1024*8
+#define MAXDATASIZE_buffer 1024*1024
 #define DEBUG 1
 
 //Set up the argument parser
@@ -65,14 +48,11 @@ int main (int argc, char **argv) {
 	char buffer[MAXDATASIZE_buffer], *filebuffer;
 	char request[MAXDATASIZE];
 	FILE *target_file = NULL;
-	int bytes_read;
-	int bytes_left;							//How many bytes left in the buffer to send.
-	int bytes_sent;
-	int total = 0;
-	int changeover = 0;
+	int bytes_read, bytes_left, bytes_sent;					//How many bytes left in the buffer to send.
+	int total = 0, changeover = 0;
 	char response[MAXDATASIZE_buffer];
 	char *fileparseptr, *temp_ptr;
-	char filename[256];
+	char filename[MAXDATASIZE_buffer];
 
     struct addrinfo peer;
     struct addrinfo *peerinfo;
@@ -161,10 +141,10 @@ int main (int argc, char **argv) {
      * 3. Create HTTP GET request header										<----DONE!
      * 4. Parse the HTTP return header from the server							<----DONE!
      * 5. Send & Recv															<----DONE!
-     * 6. Handle redirects
+     * 6. Handle redirects														<----DONE!
      * 7. Need to create a file descriptor to actually download the file to disk
      * 8. Cleaning / Testing / Debugging
-     * 9. Done! Due 11/06/12 =)
+     * 9. Done! Due 11/06/12 =(
      */
     //Client opens TCP connection to server on port 80
     if ((status = getaddrinfo(host_info.host, "80", &peer, &peerinfo)) != 0) {
@@ -196,23 +176,29 @@ int main (int argc, char **argv) {
 
 	bytes_read = MAXDATASIZE_buffer + 1;	//To make sure we do it at least once.
 	target_file = fopen(filename, "w+"); //open file for writing/appending
+
 	printf("File opened: \"%s\"\n", filename);
+
 	//TODO: Change terminating condition or find out why it doesn't work.
-	while (bytes_read) { //Should break if the buffer is not full.
+	//while (bytes_read) { //Should break if the buffer is not full.
+	do {
 		if(changeover == 0){
 			bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0); //read the buffer
 			filebuffer = strstr(buffer, "\r\n\r\n"); //find
+
 			if(filebuffer != NULL){
-				fwrite(filebuffer+4, sizeof(buffer[0]), (((sizeof buffer) - (filebuffer - (char *)&buffer)) - 4), target_file);
+				fwrite(filebuffer + 4, sizeof(buffer[0]), (((sizeof buffer) - (filebuffer - (char *)&buffer)) - 4), target_file);
 				changeover = 1;
 			}
-		} else {
+		}
+
+		else {
 			bytes_read = recv(tcp_socket, filebuffer, sizeof(buffer), 0);
 			fwrite(filebuffer, sizeof(buffer[0]), (sizeof(buffer)/sizeof(buffer[0])), target_file);
 		}
-	}
+	} while (bytes_read != 0);
 
-	strcpy(response, buffer);
+	strcat(response, buffer);
 
 	//Check what response is
 	parse_response(response);
