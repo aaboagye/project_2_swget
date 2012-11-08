@@ -183,18 +183,21 @@ int main (int argc, char **argv) {
 	//while (bytes_read) { //Should break if the buffer is not full.
 	do {
 		if(changeover == 0){
-			bytes_read = recv(tcp_socket, buffer, sizeof(buffer), 0); //read the buffer
+			bytes_read = recv(tcp_socket, buffer, MAXDATASIZE_buffer/*sizeof(buffer)*/, 0); //read the buffer
 			filebuffer = strstr(buffer, "\r\n\r\n"); //find
 
 			if(filebuffer != NULL){
-				fwrite(filebuffer + 4, sizeof(buffer[0]), (((sizeof buffer) - (filebuffer - (char *)&buffer)) - 4), target_file);
+				//fwrite(filebuffer + 4, sizeof(buffer[0]), (((sizeof buffer) - (filebuffer - (char *)&buffer)) - 4), target_file);
+				fwrite(filebuffer + 4, 1, ((bytes_read - (filebuffer - (char *)&buffer)) - 4), target_file);
 				changeover = 1;
 			}
 		}
 
 		else {
-			bytes_read = recv(tcp_socket, filebuffer, sizeof(buffer), 0);
-			fwrite(filebuffer, sizeof(buffer[0]), (sizeof(buffer)/sizeof(buffer[0])), target_file);
+			//bytes_read = recv(tcp_socket, filebuffer, sizeof(buffer), 0);
+			//fwrite(filebuffer, sizeof(buffer[0]), (sizeof(buffer)/sizeof(buffer[0])), target_file);
+			bytes_read = recv(tcp_socket, buffer, MAXDATASIZE_buffer, 0);
+			fwrite(buffer, 1, bytes_read, target_file);
 		}
 	} while (bytes_read != 0);
 
@@ -440,4 +443,5 @@ char *parse_redirect(char *response) {
 	redir[len] = 0;
 	return redir;
 }
+
 
